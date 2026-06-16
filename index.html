@@ -25,15 +25,28 @@
     .cat-head { color:#7dd3fc; font-size:.78rem; text-transform:uppercase;
                 letter-spacing:.06em; font-weight:700; margin:1.2rem 0 .45rem; }
     .note { color:#475569; font-size:.72rem; margin-top:1.5rem; text-align:center; }
+    form#add { display:flex; gap:.5rem; margin-bottom:1.2rem; flex-wrap:wrap; }
+    #add input, #add select { padding:.7rem; border-radius:.6rem; border:1px solid #334155;
+                  background:#1e293b; color:#f8fafc; font-size:1rem; }
+    #add #name { flex:1; min-width:9rem; }
+    #add #qty { flex:0 0 4.5rem; }
+    #add button { border:none; border-radius:.6rem; font-weight:600; cursor:pointer;
+                  background:#22c55e; color:#04240f; padding:.7rem 1.1rem; font-size:1rem; }
   </style>
 </head>
 <body>
   <h1>🛒 Family Shopping List</h1>
-  <div class="sub">tap the box to tick items off · add new items at home on the family hub</div>
+  <div class="sub">add items &amp; tap to tick them off — synced with the family hub</div>
+  <form id="add" onsubmit="return addItem(event)">
+    <input id="name" placeholder="Add an item…" autocomplete="off">
+    <input id="qty" placeholder="qty" autocomplete="off">
+    <select id="cat" title="Category (Auto guesses from the name)"></select>
+    <button type="submit">Add</button>
+  </form>
   <ul id="list"></ul>
   <p class="empty" id="empty" style="display:none">List is empty.</p>
   <div class="count" id="count"></div>
-  <div class="note">Live from the family hub. Tick items here; add new items on the home network.</div>
+  <div class="note">Live &amp; synced with the family hub. Add items or tick them off from anywhere.</div>
 
 <script>
   // ── Fill these two in (see deploy steps) ──
@@ -43,8 +56,56 @@
   const list = document.getElementById('list');
   const CATS = ["Produce","Bakery","Meat & Seafood","Dairy & Eggs","Frozen",
                 "Pantry","Snacks","Beverages","Household","Other"];
+  // keyword → category (mirrors the Pi's guesser; order resolves conflicts)
+  const GUESS = [
+    ["Frozen",["frozen","ice cream","popsicle","fries","freezer"]],
+    ["Produce",["apple","banana","lettuce","tomato","onion","potato","carrot","spinach",
+      "pepper","cucumber","garlic","lemon","lime","berr","grape","avocado","broccoli",
+      "celery","mushroom","fruit","veg","kale","orange","pear","melon","corn","salad"]],
+    ["Bakery",["bread","bagel","bun","roll","muffin","croissant","tortilla","baguette",
+      "cake","donut","pastry"]],
+    ["Meat & Seafood",["chicken","beef","pork","bacon","sausage","fish","salmon","shrimp",
+      "turkey","ham","steak","ground","meat"]],
+    ["Dairy & Eggs",["milk","egg","cheese","butter","yogurt","yoghurt","sour cream"]],
+    ["Pantry",["rice","pasta","flour","sugar","salt","oil","cereal","bean","sauce","canned",
+      "soup","peanut butter","jam","jelly","honey","spice","coffee","tea","ketchup",
+      "mustard","mayo","oats","noodle"]],
+    ["Snacks",["chips","cracker","cookie","candy","chocolate","nuts","popcorn","granola","snack"]],
+    ["Beverages",["juice","soda","pop","water","beer","wine","drink","cola","lemonade"]],
+    ["Household",["paper towel","toilet","detergent","soap","dish","cleaner","trash bag",
+      "foil","wrap","shampoo","toothpaste","diaper","tissue","napkin","sponge","bleach"]],
+  ];
+  function guessCategory(name){
+    const n = (name||"").toLowerCase();
+    for (const [cat, kws] of GUESS) if (kws.some(k => n.includes(k))) return cat;
+    return "Other";
+  }
+  // populate the category dropdown (Auto + all aisles)
+  document.getElementById('cat').innerHTML =
+    '<option value="auto">Auto</option>' + CATS.map(c => `<option value="${c}">${c}</option>`).join('');
+
   function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
   function catOf(it){ return CATS.includes(it.category) ? it.category : 'Other'; }
+
+  async function addItem(e) {
+    e.preventDefault();
+    const name = document.getElementById('name'), qty = document.getElementById('qty'),
+          cat = document.getElementById('cat');
+    if (!name.value.trim()) return false;
+    const category = cat.value === 'auto' ? guessCategory(name.value) : cat.value;
+    const body = { name: name.value.trim(), qty: qty.value.trim() || null, category };
+    name.value = ''; qty.value = ''; cat.value = 'auto'; name.focus();
+    try {
+      await fetch(`${SB_URL}/rest/v1/shopping_items`, {
+        method: "POST",
+        headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY,
+                   "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify(body),
+      });
+    } catch (e) { /* ignore */ }
+    load();
+    return false;
+  }
 
   async function load() {
     try {
