@@ -22,6 +22,8 @@
     .qty { color:#94a3b8; font-size:.9rem; margin-left:.3rem; }
     .count { color:#64748b; font-size:.85rem; margin-top:1rem; }
     .empty { color:#475569; font-style:italic; text-align:center; padding:2rem 0; }
+    .cat-head { color:#7dd3fc; font-size:.78rem; text-transform:uppercase;
+                letter-spacing:.06em; font-weight:700; margin:1.2rem 0 .45rem; }
     .note { color:#475569; font-size:.72rem; margin-top:1.5rem; text-align:center; }
   </style>
 </head>
@@ -39,22 +41,33 @@
   const SB_KEY = "sb_publishable_b5H-d8Ra9olUsvv14Yx_7Q_gpazJmcH";   // Settings → API Keys → publishable
 
   const list = document.getElementById('list');
+  const CATS = ["Produce","Bakery","Meat & Seafood","Dairy & Eggs","Frozen",
+                "Pantry","Snacks","Beverages","Household","Other"];
   function esc(s){ const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+  function catOf(it){ return CATS.includes(it.category) ? it.category : 'Other'; }
 
   async function load() {
     try {
       const r = await fetch(
-        `${SB_URL}/rest/v1/shopping_items?select=*&order=checked.asc,created_at.asc`,
+        `${SB_URL}/rest/v1/shopping_items?select=*&order=created_at.asc`,
         { headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY } });
       const items = await r.json();
       list.innerHTML = '';
-      (items || []).forEach(it => {
-        const li = document.createElement('li');
-        if (it.checked) li.className = 'checked';
-        li.innerHTML =
-          `<div class="box" onclick="toggle('${it.id}', ${!it.checked})">${it.checked ? '✓' : ''}</div>
-           <span class="name">${esc(it.name)}${it.qty ? `<span class="qty">${esc(it.qty)}</span>` : ''}</span>`;
-        list.appendChild(li);
+      CATS.forEach(cat => {
+        const group = (items || []).filter(it => catOf(it) === cat)
+                                   .sort((a, b) => (a.checked - b.checked));
+        if (!group.length) return;
+        const h = document.createElement('div');
+        h.className = 'cat-head'; h.textContent = cat;
+        list.appendChild(h);
+        group.forEach(it => {
+          const li = document.createElement('li');
+          if (it.checked) li.className = 'checked';
+          li.innerHTML =
+            `<div class="box" onclick="toggle('${it.id}', ${!it.checked})">${it.checked ? '✓' : ''}</div>
+             <span class="name">${esc(it.name)}${it.qty ? `<span class="qty">${esc(it.qty)}</span>` : ''}</span>`;
+          list.appendChild(li);
+        });
       });
       const open = (items || []).filter(i => !i.checked).length;
       document.getElementById('count').textContent =
