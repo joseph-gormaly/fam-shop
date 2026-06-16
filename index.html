@@ -27,11 +27,11 @@
 </head>
 <body>
   <h1>🛒 Family Shopping List</h1>
-  <div class="sub">view-only · updates automatically · edit at home on the family hub</div>
+  <div class="sub">tap the box to tick items off · add new items at home on the family hub</div>
   <ul id="list"></ul>
   <p class="empty" id="empty" style="display:none">List is empty.</p>
   <div class="count" id="count"></div>
-  <div class="note">Live from the family hub. Add &amp; tick items on the home network.</div>
+  <div class="note">Live from the family hub. Tick items here; add new items on the home network.</div>
 
 <script>
   // ── Fill these two in (see deploy steps) ──
@@ -52,7 +52,7 @@
         const li = document.createElement('li');
         if (it.checked) li.className = 'checked';
         li.innerHTML =
-          `<div class="box">${it.checked ? '✓' : ''}</div>
+          `<div class="box" onclick="toggle('${it.id}', ${!it.checked})">${it.checked ? '✓' : ''}</div>
            <span class="name">${esc(it.name)}${it.qty ? `<span class="qty">${esc(it.qty)}</span>` : ''}</span>`;
         list.appendChild(li);
       });
@@ -62,6 +62,19 @@
       document.getElementById('empty').style.display = items.length ? 'none' : 'block';
     } catch (e) { /* keep last view */ }
   }
+  // Tick/untick — the only write the public key is allowed (checked column only).
+  async function toggle(id, checked) {
+    try {
+      await fetch(`${SB_URL}/rest/v1/shopping_items?id=eq.${id}`, {
+        method: "PATCH",
+        headers: { apikey: SB_KEY, Authorization: "Bearer " + SB_KEY,
+                   "Content-Type": "application/json", Prefer: "return=minimal" },
+        body: JSON.stringify({ checked, checked_at: checked ? new Date().toISOString() : null }),
+      });
+    } catch (e) { /* ignore */ }
+    load();
+  }
+
   load();
   setInterval(load, 10000);
 </script>
